@@ -8,8 +8,8 @@ CodeCollector - сканирование, фильтрация и сортиро
 
 from pathlib import Path
 from typing import List
-from config import Config
-from utils import GitignoreHandler, FileFilters
+from codecollector.config import Config
+from codecollector.utils import GitignoreHandler, FileFilters
 
 
 class CodeCollector:

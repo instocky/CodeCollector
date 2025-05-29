@@ -1,0 +1,44 @@
+# MANIFEST.in - файлы для включения в пакет при сборке
+# 
+# Определяет какие дополнительные файлы (не .py) включать в пакет
+# при сборке через python setup.py sdist
+
+# Документация
+include README.md
+include LICENSE
+include CHANGELOG.md
+
+# Конфигурационные файлы
+include requirements.txt
+include pyproject.toml
+include setup.py
+
+# Исключаем файлы разработки и временные файлы
+exclude .gitignore
+exclude .env*
+exclude *.log
+exclude *.tmp
+
+# Исключаем папки разработки
+prune .git
+prune .vscode
+prune __pycache__
+prune *.egg-info
+prune build
+prune dist
+prune .pytest_cache
+prune .mypy_cache
+prune .coverage
+prune htmlcov
+prune .tox
+prune venv
+prune .venv
+
+# Исключаем тестовые файлы (если будут)
+prune tests
+exclude test_*.py
+exclude *_test.py
+
+# Исключаем настройки проекта
+prune .codecollector
+exclude collected_files.*

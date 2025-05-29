@@ -1,0 +1,135 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codecollector"
+version = "1.0.0"
+authors = [
+    {name = "CodeCollector Team", email = "info@codecollector.dev"},
+]
+description = "Инструмент для сбора файлов кода в один документ"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Utilities",
+    "Environment :: Console",
+]
+keywords = [
+    "code", "collector", "documentation", "markdown", 
+    "source", "files", "aggregator", "developer-tools"
+]
+dependencies = [
+    # Пока нет внешних зависимостей, используем только стандартную библиотеку
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/codecollector"
+"Bug Reports" = "https://github.com/yourusername/codecollector/issues"
+"Source Code" = "https://github.com/yourusername/codecollector"
+Documentation = "https://github.com/yourusername/codecollector#readme"
+
+[project.scripts]
+codecollector = "codecollector.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.0",
+    "black>=21.0",
+    "flake8>=3.8",
+    "mypy>=0.800",
+]
+build = [
+    "build>=0.7",
+    "twine>=3.0",
+]
+
+[tool.setuptools]
+packages = ["codecollector"]
+
+[tool.setuptools.package-data]
+codecollector = ["*.md", "*.txt"]
+
+# Конфигурация для инструментов разработки
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+known_first_party = ["codecollector"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["codecollector"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "setup.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

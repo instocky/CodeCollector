@@ -9,8 +9,8 @@ InteractiveSelector - UI для выбора файлов и папок в ви�
 import os
 from pathlib import Path
 from typing import List, Tuple, Optional
-from models import TreeNode
-from utils import KeyboardHandler
+from codecollector.models import TreeNode
+from codecollector.utils import KeyboardHandler
 
 
 class InteractiveSelector:

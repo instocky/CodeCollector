@@ -9,7 +9,7 @@ Config - структура настроек, ConfigManager - парсинг и 
 import sys
 from dataclasses import dataclass
 from typing import Optional
-from models import ProjectSettings
+from codecollector.models import ProjectSettings
 
 
 @dataclass

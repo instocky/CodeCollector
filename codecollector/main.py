@@ -12,11 +12,11 @@ from pathlib import Path
 from typing import List
 
 # Импорты модулей приложения
-from config import Config, ConfigManager
-from models import ProjectSettings
-from collector import CodeCollector
-from selector import InteractiveSelector
-from writers import MarkdownWriter, TextWriter
+from codecollector.config import Config, ConfigManager
+from codecollector.models import ProjectSettings
+from codecollector.collector import CodeCollector
+from codecollector.selector import InteractiveSelector
+from codecollector.writers import MarkdownWriter, TextWriter
 
 
 class CodeCollectorApp:
@@ -213,7 +213,7 @@ def show_help():
 🚀 CodeCollector - Инструмент для сбора файлов кода в один документ
 
 ИСПОЛЬЗОВАНИЕ:
-  python main.py [ОПЦИИ] [ДИРЕКТОРИЯ] [ВЫХОДНОЙ_ФАЙЛ]
+  codecollector [ОПЦИИ] [ДИРЕКТОРИЯ] [ВЫХОДНОЙ_ФАЙЛ]
 
 ОПЦИИ:
   -i, --interactive     Интерактивный выбор файлов через древовидный интерфейс
@@ -229,10 +229,10 @@ def show_help():
   --debug              Включить отладочный режим
 
 ПРИМЕРЫ:
-  python main.py                           # Базовый запуск
-  python main.py -i -m -s                 # Интерактивный выбор, Markdown со структурой
-  python main.py -t ./src output.md       # Сортировка по времени, указанная папка
-  python main.py --no-markdown -i         # Текстовый формат, интерактивный выбор
+  codecollector                           # Базовый запуск
+  codecollector -i -m -s                 # Интерактивный выбор, Markdown со структурой
+  codecollector -t ./src output.md       # Сортировка по времени, указанная папка
+  codecollector --no-markdown -i         # Текстовый формат, интерактивный выбор
 
 ИНТЕРАКТИВНЫЙ РЕЖИМ:
   ↑↓ - навигация по дереву файлов
