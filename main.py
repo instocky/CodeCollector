@@ -5,6 +5,7 @@ import os
 import sys
 import fnmatch
 import datetime
+import json
 from pathlib import Path
 from collections import defaultdict
 
@@ -74,6 +75,119 @@ class TreeNode:
         for child in self.children:
             result.extend(child.get_selected_files())
         return result
+
+class ProjectSettings:
+    """Класс для работы с настройками проекта"""
+    
+    def __init__(self, root_path):
+        self.root_path = Path(root_path).resolve()
+        self.settings_dir = self.root_path / ".codecollector"
+        self.project_name = self.root_path.name
+        self.settings_file = self.settings_dir / f"{self.project_name}.json"
+        
+    def load_settings(self):
+        """Загружает настройки проекта"""
+        if not self.settings_file.exists():
+            return None
+            
+        try:
+            with open(self.settings_file, 'r', encoding='utf-8') as f:
+                settings = json.load(f)
+                
+            # Проверяем актуальность пути
+            if settings.get('full_path') != str(self.root_path):
+                return None
+                
+            return settings
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"⚠️  Предупреждение: Не удалось загрузить настройки проекта: {e}")
+            return None
+    
+    def save_settings(self, preferences, selected_files, selected_folders):
+        """Сохраняет настройки проекта"""
+        try:
+            # Создаем папку если не существует
+            self.settings_dir.mkdir(exist_ok=True)
+            
+            # Конвертируем пути в относительные строки
+            selected_files_rel = []
+            selected_folders_rel = []
+            
+            for file_path in selected_files:
+                try:
+                    rel_path = file_path.relative_to(self.root_path)
+                    selected_files_rel.append(str(rel_path).replace('\\', '/'))
+                except ValueError:
+                    continue
+            
+            for folder_path in selected_folders:
+                try:
+                    rel_path = folder_path.relative_to(self.root_path)
+                    selected_folders_rel.append(str(rel_path).replace('\\', '/'))
+                except ValueError:
+                    continue
+            
+            settings = {
+                "project_name": self.project_name,
+                "full_path": str(self.root_path),
+                "last_updated": datetime.datetime.now().isoformat(),
+                "preferences": preferences,
+                "selected_files": selected_files_rel,
+                "selected_folders": selected_folders_rel
+            }
+            
+            with open(self.settings_file, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, indent=2, ensure_ascii=False)
+                
+            print("💾 Настройки проекта сохранены")
+            
+            # Добавляем в .gitignore если нужно
+            self._update_gitignore()
+            
+        except Exception as e:
+            print(f"⚠️  Предупреждение: Не удалось сохранить настройки: {e}")
+    
+    def _update_gitignore(self):
+        """Добавляет .codecollector в .gitignore если нужно"""
+        gitignore_path = self.root_path / '.gitignore'
+        gitignore_entry = '.codecollector/'
+        
+        try:
+            # Читаем существующий .gitignore
+            existing_lines = []
+            if gitignore_path.exists():
+                with open(gitignore_path, 'r', encoding='utf-8') as f:
+                    existing_lines = f.read().splitlines()
+            
+            # Проверяем, есть ли уже запись
+            if gitignore_entry not in existing_lines and '.codecollector' not in existing_lines:
+                with open(gitignore_path, 'a', encoding='utf-8') as f:
+                    if existing_lines and not existing_lines[-1].strip():
+                        f.write(f"{gitignore_entry}\n")
+                    else:
+                        f.write(f"\n{gitignore_entry}\n")
+                        
+        except Exception:
+            pass  # Игнорируем ошибки с .gitignore
+    
+    def filter_existing_paths(self, selected_files, selected_folders):
+        """Фильтрует существующие пути из сохраненных настроек"""
+        existing_files = []
+        existing_folders = []
+        
+        # Проверяем файлы
+        for rel_path_str in selected_files:
+            abs_path = self.root_path / rel_path_str
+            if abs_path.exists() and abs_path.is_file():
+                existing_files.append(abs_path)
+        
+        # Проверяем папки
+        for rel_path_str in selected_folders:
+            abs_path = self.root_path / rel_path_str
+            if abs_path.exists() and abs_path.is_dir():
+                existing_folders.append(abs_path)
+        
+        return existing_files, existing_folders
 
 def get_key():
     """Получает нажатую клавишу без Enter (кроссплатформенно)"""
@@ -241,6 +355,28 @@ def build_file_tree(files, root_path):
     sort_children(tree_root)
     return tree_root
 
+def apply_saved_selection(tree_root, saved_files, saved_folders, root_path):
+    """Применяет сохраненный выбор к дереву файлов"""
+    # Преобразуем сохраненные пути в множества для быстрого поиска
+    saved_files_set = set(saved_files)
+    saved_folders_set = set(saved_folders)
+    
+    def mark_selected(node):
+        if node.is_file:
+            # Проверяем файл
+            if node.path in saved_files_set:
+                node.selected = True
+        else:
+            # Проверяем папку
+            if node.path in saved_folders_set:
+                node.set_selected_recursive(True)
+            else:
+                # Рекурсивно обрабатываем детей
+                for child in node.children:
+                    mark_selected(child)
+    
+    mark_selected(tree_root)
+
 def get_visible_nodes(tree_root):
     """Возвращает список видимых узлов для отображения"""
     visible = []
@@ -256,7 +392,7 @@ def get_visible_nodes(tree_root):
     traverse(tree_root)
     return visible
 
-def interactive_tree_selector(files, root_path, sort_by_time=False):
+def interactive_tree_selector(files, root_path, sort_by_time=False, saved_files=None, saved_folders=None):
     """Интерактивный выбор файлов с иерархическим деревом"""
     if not files:
         print("Нет файлов для выбора!")
@@ -270,6 +406,11 @@ def interactive_tree_selector(files, root_path, sort_by_time=False):
     
     # Строим дерево
     tree_root = build_file_tree(files, root_path)
+    
+    # Применяем сохраненный выбор если есть
+    if saved_files or saved_folders:
+        apply_saved_selection(tree_root, saved_files or [], saved_folders or [], root_path)
+    
     current_pos = 0
     page_size = 18
     current_page = 0
@@ -555,61 +696,7 @@ def is_text_file(file_path):
     
     return False
 
-def collect_files(root_dir, output_file):
-    """Собирает все файлы в один текстовый файл"""
-    root_path = Path(root_dir).resolve()
-    collected_files = []
-    
-    print(f"Сканирование директории: {root_path}")
-    
-    # Читаем .gitignore файлы
-    gitignore_patterns = []
-    
-    # Основной .gitignore в корне проекта
-    main_gitignore = root_path / '.gitignore'
-    gitignore_patterns.extend(parse_gitignore(main_gitignore))
-    
-    # Можно добавить поддержку .gitignore в подпапках, но обычно используется только корневой
-    print(f"Загружено паттернов из .gitignore: {len(gitignore_patterns)}")
-    if gitignore_patterns:
-        print("Паттерны:", gitignore_patterns[:5], "..." if len(gitignore_patterns) > 5 else "")
-    
-    # Рекурсивно обходим все файлы
-    for file_path in root_path.rglob('*'):
-        # Пропускаем директории
-        if file_path.is_dir():
-            continue
-        
-        # Проверяем .gitignore паттерны
-        if is_ignored_by_gitignore(file_path, root_path, gitignore_patterns):
-            continue
-            
-        # Проверяем, не находится ли файл в исключаемой директории
-        skip_dir = False
-        for parent in file_path.parents:
-            if should_skip_directory(parent.name):
-                skip_dir = True
-                break
-        
-        if skip_dir:
-            continue
-            
-        # Пропускаем файлы по маске
-        if should_skip_file(file_path):
-            continue
-            
-        # Проверяем, что файл текстовый
-        if not is_text_file(file_path):
-            continue
-            
-        # Проверяем, что файл не пустой
-        try:
-            if file_path.stat().st_size == 0:
-                continue
-        except OSError:
-            continue
-            
-def collect_files(root_dir, output_file, interactive=False, sort_by_time=False, markdown_format=False, show_structure=False):
+def collect_files(root_dir, output_file, interactive=False, sort_by_time=False, markdown_format=False, show_structure=False, project_settings=None):
     """Собирает все файлы в один текстовый файл"""
     root_path = Path(root_dir).resolve()
     collected_files = []
@@ -675,16 +762,46 @@ def collect_files(root_dir, output_file, interactive=False, sort_by_time=False, 
         print("Сортировка по имени файла...")
         collected_files.sort()
     
+    # Загружаем сохраненные настройки если есть
+    saved_files = []
+    saved_folders = []
+    if project_settings:
+        settings = project_settings.load_settings()
+        if settings:
+            # Фильтруем существующие пути
+            saved_files, saved_folders = project_settings.filter_existing_paths(
+                settings.get('selected_files', []),
+                settings.get('selected_folders', [])
+            )
+    
     # Интерактивный выбор файлов если нужно
     if interactive and collected_files:
         print("\nЗапуск интерактивного выбора файлов...")
         input("Нажмите Enter для продолжения...")
-        selected_files = interactive_tree_selector(collected_files, root_path, sort_by_time)
+        selected_files = interactive_tree_selector(
+            collected_files, root_path, sort_by_time, saved_files, saved_folders
+        )
         if not selected_files:
             print("Файлы не выбраны. Операция отменена.")
             return
         collected_files = selected_files
         print(f"\nВыбрано файлов для обработки: {len(collected_files)}")
+        
+        # Сохраняем выбор пользователя
+        if project_settings:
+            # Определяем выбранные папки (папки где выбраны ВСЕ файлы)
+            selected_folders_paths = []
+            # Для простоты пока не реализуем логику определения полностью выбранных папок
+            # Это можно добавить позже для оптимизации
+            
+            preferences = {
+                'markdown_format': markdown_format,
+                'show_structure': show_structure,
+                'sort_by_time': sort_by_time,
+                'default_output': output_file
+            }
+            
+            project_settings.save_settings(preferences, collected_files, selected_folders_paths)
     
     if not collected_files:
         print("Нет файлов для обработки!")
@@ -787,8 +904,6 @@ def write_output_file(files, root_path, output_file, markdown_format=False, show
 
 def generate_project_structure(files, root_path):
     """Генерирует древовидную структуру проекта"""
-    import datetime
-    
     # Группируем файлы по папкам
     structure = {}
     
@@ -836,66 +951,77 @@ def generate_project_structure(files, root_path):
     
     return "\n".join(tree_lines)
 
+def parse_arguments():
+    """Парсит аргументы командной строки с поддержкой негативных флагов"""
+    args = {
+        'interactive': False,
+        'sort_by_time': False,
+        'markdown_format': False,
+        'show_structure': False,
+        'source_dir': None,
+        'output_file': None
+    }
+    
+    # Обрабатываем аргументы
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        
+        if arg in ['-i', '--interactive']:
+            args['interactive'] = True
+        elif arg in ['-t', '--time', '--sort-time']:
+            args['sort_by_time'] = True
+        elif arg in ['--no-time']:
+            args['sort_by_time'] = False
+        elif arg in ['-m', '--markdown']:
+            args['markdown_format'] = True
+        elif arg in ['--no-markdown']:
+            args['markdown_format'] = False
+        elif arg in ['-s', '--structure']:
+            args['show_structure'] = True
+        elif arg in ['--no-structure']:
+            args['show_structure'] = False
+        elif not arg.startswith('-'):
+            # Позиционные аргументы
+            if args['source_dir'] is None:
+                args['source_dir'] = arg
+            elif args['output_file'] is None:
+                args['output_file'] = arg
+        
+        i += 1
+    
+    return args
+
+def show_applied_flags(preferences, from_settings=False):
+    """Показывает применяемые флаги"""
+    flags = []
+    
+    if preferences.get('sort_by_time', False):
+        flags.append('-t')
+    if preferences.get('markdown_format', False):
+        flags.append('-m')
+    if preferences.get('show_structure', False):
+        flags.append('-s')
+    
+    if flags:
+        flag_str = ' '.join(flags)
+        source = "сохраненные настройки" if from_settings else "CLI аргументы"
+        print(f"📋 Применяемые флаги: {flag_str} ({source})")
+    else:
+        print("📋 Используются настройки по умолчанию")
+
 def main():
     """Главная функция"""
-    interactive_mode = False
-    sort_by_time = False
-    markdown_format = False
-    show_structure = False
+    # Парсим CLI аргументы
+    cli_args = parse_arguments()
     
-    # Проверяем аргументы командной строки
-    args_to_remove = []
-    
-    for i, arg in enumerate(sys.argv[1:], 1):
-        if arg in ['-i', '--interactive']:
-            interactive_mode = True
-            args_to_remove.append(i)
-        elif arg in ['-t', '--time', '--sort-time']:
-            sort_by_time = True
-            args_to_remove.append(i)
-        elif arg in ['-m', '--markdown']:
-            markdown_format = True
-            args_to_remove.append(i)
-        elif arg in ['-s', '--structure']:
-            show_structure = True
-            args_to_remove.append(i)
-    
-    # Удаляем обработанные флаги
-    for i in reversed(args_to_remove):
-        sys.argv.pop(i)
-    
-    if len(sys.argv) > 1:
-        source_dir = sys.argv[1]
+    # Определяем рабочую директорию
+    if cli_args['source_dir']:
+        source_dir = cli_args['source_dir']
     else:
         source_dir = input("Введите путь к директории для сканирования (или Enter для текущей): ").strip()
         if not source_dir:
             source_dir = "."
-    
-    if len(sys.argv) > 2:
-        output_file = sys.argv[2]
-    else:
-        default_ext = ".md" if markdown_format else ".txt"
-        default_name = f"collected_files{default_ext}"
-        output_file = input(f"Введите имя выходного файла (по умолчанию '{default_name}'): ").strip()
-        if not output_file:
-            output_file = default_name
-    
-    # Спрашиваем про опции если не указаны в аргументах
-    if not interactive_mode:
-        choice = input("Использовать интерактивный выбор файлов? (y/N): ").strip().lower()
-        interactive_mode = choice in ['y', 'yes', 'д', 'да']
-    
-    if not sort_by_time:
-        choice = input("Сортировать по времени изменения (новые сверху)? (y/N): ").strip().lower()
-        sort_by_time = choice in ['y', 'yes', 'д', 'да']
-    
-    if not markdown_format:
-        choice = input("Использовать Markdown формат? (y/N): ").strip().lower()
-        markdown_format = choice in ['y', 'yes', 'д', 'да']
-        
-        if markdown_format and not show_structure:
-            choice = input("Включить структуру проекта? (y/N): ").strip().lower()
-            show_structure = choice in ['y', 'yes', 'д', 'да']
     
     source_path = Path(source_dir)
     
@@ -907,12 +1033,77 @@ def main():
         print(f"Ошибка: {source_dir} не является директорией!")
         return 1
     
+    # Инициализируем настройки проекта
+    project_settings = ProjectSettings(source_path)
+    
+    # Загружаем сохраненные настройки
+    saved_settings = project_settings.load_settings()
+    saved_preferences = {}
+    
+    if saved_settings:
+        saved_preferences = saved_settings.get('preferences', {})
+        print(f"🔄 Загружены настройки проекта '{saved_settings.get('project_name', 'Unknown')}'")
+    
+    # Объединяем настройки: CLI флаги > сохраненные настройки > defaults
+    final_preferences = {
+        'interactive': cli_args['interactive'],  # interactive не сохраняется
+        'sort_by_time': cli_args['sort_by_time'] if 'sort_by_time' in sys.argv else saved_preferences.get('sort_by_time', False),
+        'markdown_format': cli_args['markdown_format'] if any(arg in sys.argv for arg in ['-m', '--markdown', '--no-markdown']) else saved_preferences.get('markdown_format', False),
+        'show_structure': cli_args['show_structure'] if any(arg in sys.argv for arg in ['-s', '--structure', '--no-structure']) else saved_preferences.get('show_structure', False)
+    }
+    
+    # Определяем выходной файл
+    if cli_args['output_file']:
+        output_file = cli_args['output_file']
+    else:
+        # Используем сохраненное имя файла или спрашиваем у пользователя
+        default_output = saved_preferences.get('default_output')
+        if not default_output:
+            default_ext = ".md" if final_preferences['markdown_format'] else ".txt"
+            default_output = f"collected_files{default_ext}"
+        
+        output_file = input(f"Введите имя выходного файла (по умолчанию '{default_output}'): ").strip()
+        if not output_file:
+            output_file = default_output
+    
+    # Показываем применяемые флаги
+    show_applied_flags(final_preferences, bool(saved_settings))
+    
+    # Спрашиваем про недостающие опции если они не были указаны
+    if not final_preferences['interactive'] and '--interactive' not in sys.argv and '-i' not in sys.argv:
+        choice = input("Использовать интерактивный выбор файлов? (y/N): ").strip().lower()
+        final_preferences['interactive'] = choice in ['y', 'yes', 'д', 'да']
+    
+    # Если флаги не были указаны в CLI и нет сохраненных настроек, спрашиваем
+    if not saved_settings:
+        if 'sort_by_time' not in [arg.replace('--', '').replace('-', '_') for arg in sys.argv]:
+            choice = input("Сортировать по времени изменения (новые сверху)? (y/N): ").strip().lower()
+            final_preferences['sort_by_time'] = choice in ['y', 'yes', 'д', 'да']
+        
+        if not any(arg in sys.argv for arg in ['-m', '--markdown', '--no-markdown']):
+            choice = input("Использовать Markdown формат? (y/N): ").strip().lower()
+            final_preferences['markdown_format'] = choice in ['y', 'yes', 'д', 'да']
+            
+            if final_preferences['markdown_format'] and not any(arg in sys.argv for arg in ['-s', '--structure', '--no-structure']):
+                choice = input("Включить структуру проекта? (y/N): ").strip().lower()
+                final_preferences['show_structure'] = choice in ['y', 'yes', 'д', 'да']
+    
     try:
-        collect_files(source_dir, output_file, interactive_mode, sort_by_time, markdown_format, show_structure)
-        format_info = "Markdown" if markdown_format else "текстовом"
-        structure_info = " со структурой" if show_structure else ""
+        collect_files(
+            source_dir, 
+            output_file, 
+            final_preferences['interactive'], 
+            final_preferences['sort_by_time'], 
+            final_preferences['markdown_format'], 
+            final_preferences['show_structure'],
+            project_settings
+        )
+        
+        format_info = "Markdown" if final_preferences['markdown_format'] else "текстовом"
+        structure_info = " со структурой" if final_preferences['show_structure'] else ""
         print(f"\nГотово! Результат сохранен в {format_info} формате{structure_info}: {output_file}")
         return 0
+        
     except Exception as e:
         print(f"Ошибка: {e}")
         return 1

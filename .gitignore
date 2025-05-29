@@ -264,7 +264,9 @@ config.py
 .env.production
 
 # User
+.codecollector/
 notes.md
+collected_files.md
 *.txt
 
 dev/
