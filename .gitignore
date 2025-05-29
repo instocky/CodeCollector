@@ -211,7 +211,7 @@ alembic/versions/*
 !alembic/versions/.gitkeep
 
 # Configuration files with secrets
-config.py
+# config.py
 secrets.json
 *.pem
 *.key
@@ -259,7 +259,7 @@ Desktop.ini
 # Custom project specific
 api.log
 youtube_subtitles.db
-config.py
+# config.py
 .env.local
 .env.production
 
