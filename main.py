@@ -4,6 +4,7 @@
 import os
 import sys
 import fnmatch
+import datetime
 from pathlib import Path
 from collections import defaultdict
 
@@ -608,7 +609,7 @@ def collect_files(root_dir, output_file):
         except OSError:
             continue
             
-def collect_files(root_dir, output_file, interactive=False, sort_by_time=False):
+def collect_files(root_dir, output_file, interactive=False, sort_by_time=False, markdown_format=False, show_structure=False):
     """Собирает все файлы в один текстовый файл"""
     root_path = Path(root_dir).resolve()
     collected_files = []
@@ -690,14 +691,73 @@ def collect_files(root_dir, output_file, interactive=False, sort_by_time=False):
         return
     
     # Записываем все в выходной файл
+    write_output_file(collected_files, root_path, output_file, markdown_format, show_structure)
+
+def write_output_file(files, root_path, output_file, markdown_format=False, show_structure=False):
+    """Записывает файлы в выходной файл в указанном формате"""
     with open(output_file, 'w', encoding='utf-8') as out_f:
-        for file_path in sorted(collected_files):
+        if markdown_format:
+            # Заголовок для markdown
+            project_name = root_path.name
+            out_f.write(f"# CodeCollector - {project_name}\n\n")
+            out_f.write(f"**Собрано файлов:** {len(files)}  \n")
+            out_f.write(f"**Дата сбора:** {datetime.datetime.now().strftime('%d.%m.%Y %H:%M:%S')}  \n")
+            out_f.write(f"**Путь:** `{root_path}`\n\n")
+            
+            # Структура проекта если нужно
+            if show_structure:
+                out_f.write("## 📁 Структура проекта\n\n")
+                structure = generate_project_structure(files, root_path)
+                out_f.write("```\n")
+                out_f.write(structure)
+                out_f.write("```\n\n")
+            
+            out_f.write("---\n\n")
+            out_f.write("## 📄 Содержимое файлов\n\n")
+        
+        for file_path in sorted(files):
             try:
                 # Получаем относительный путь
                 rel_path = file_path.relative_to(root_path)
                 
-                # Записываем заголовок
-                out_f.write(f"# {rel_path}\n")
+                if markdown_format:
+                    # Markdown формат
+                    out_f.write(f"### `{rel_path}`\n\n")
+                    
+                    # Определяем язык для подсветки синтаксиса
+                    extension = file_path.suffix.lower()
+                    language_map = {
+                        '.py': 'python',
+                        '.php': 'php', 
+                        '.js': 'javascript',
+                        '.jsx': 'jsx',
+                        '.ts': 'typescript',
+                        '.tsx': 'tsx',
+                        '.html': 'html',
+                        '.css': 'css',
+                        '.scss': 'scss',
+                        '.sql': 'sql',
+                        '.json': 'json',
+                        '.xml': 'xml',
+                        '.yml': 'yaml',
+                        '.yaml': 'yaml',
+                        '.md': 'markdown',
+                        '.sh': 'bash',
+                        '.bat': 'batch',
+                        '.dockerfile': 'dockerfile',
+                        '.go': 'go',
+                        '.java': 'java',
+                        '.c': 'c',
+                        '.cpp': 'cpp',
+                        '.rb': 'ruby',
+                        '.rs': 'rust'
+                    }
+                    
+                    lang = language_map.get(extension, '')
+                    out_f.write(f"```{lang}\n")
+                else:
+                    # Обычный текстовый формат
+                    out_f.write(f"# {rel_path}\n")
                 
                 # Записываем содержимое файла
                 try:
@@ -711,10 +771,13 @@ def collect_files(root_dir, output_file, interactive=False, sort_by_time=False):
                             content = in_f.read()
                             out_f.write(content)
                     except:
-                        out_f.write(f"[Ошибка чтения файла: неподдерживаемая кодировка]\n")
+                        error_msg = "[Ошибка чтения файла: неподдерживаемая кодировка]"
+                        out_f.write(error_msg + "\n")
                 
-                # Добавляем разделитель между файлами
-                out_f.write("\n\n")
+                if markdown_format:
+                    out_f.write("\n```\n\n")
+                else:
+                    out_f.write("\n\n")
                 
                 print(f"Обработан: {rel_path}")
                 
@@ -722,10 +785,63 @@ def collect_files(root_dir, output_file, interactive=False, sort_by_time=False):
                 print(f"Ошибка при обработке {file_path}: {e}")
                 continue
 
+def generate_project_structure(files, root_path):
+    """Генерирует древовидную структуру проекта"""
+    import datetime
+    
+    # Группируем файлы по папкам
+    structure = {}
+    
+    for file_path in files:
+        rel_path = file_path.relative_to(root_path)
+        parts = rel_path.parts
+        
+        current = structure
+        # Проходим по всем частям пути
+        for i, part in enumerate(parts):
+            if part not in current:
+                is_file = i == len(parts) - 1
+                current[part] = {
+                    '_is_file': is_file,
+                    '_path': file_path if is_file else None
+                }
+                if not is_file:
+                    current[part]['_children'] = {}
+            
+            if not current[part]['_is_file']:
+                current = current[part]['_children']
+    
+    # Генерируем текстовое представление
+    def build_tree_text(node_dict, prefix="", is_last=True):
+        result = []
+        items = sorted(node_dict.items(), key=lambda x: (x[1]['_is_file'], x[0].lower()))
+        
+        for i, (name, info) in enumerate(items):
+            is_last_item = i == len(items) - 1
+            current_prefix = "└── " if is_last_item else "├── "
+            
+            if info['_is_file']:
+                result.append(f"{prefix}{current_prefix}{name}")
+            else:
+                result.append(f"{prefix}{current_prefix}{name}/")
+                # Рекурсивно добавляем детей
+                next_prefix = prefix + ("    " if is_last_item else "│   ")
+                children_text = build_tree_text(info['_children'], next_prefix, is_last_item)
+                result.extend(children_text)
+        
+        return result
+    
+    tree_lines = [f"{root_path.name}/"]
+    tree_lines.extend(build_tree_text(structure['_children'] if '_children' in structure else structure))
+    
+    return "\n".join(tree_lines)
+
 def main():
     """Главная функция"""
     interactive_mode = False
     sort_by_time = False
+    markdown_format = False
+    show_structure = False
     
     # Проверяем аргументы командной строки
     args_to_remove = []
@@ -736,6 +852,12 @@ def main():
             args_to_remove.append(i)
         elif arg in ['-t', '--time', '--sort-time']:
             sort_by_time = True
+            args_to_remove.append(i)
+        elif arg in ['-m', '--markdown']:
+            markdown_format = True
+            args_to_remove.append(i)
+        elif arg in ['-s', '--structure']:
+            show_structure = True
             args_to_remove.append(i)
     
     # Удаляем обработанные флаги
@@ -752,19 +874,28 @@ def main():
     if len(sys.argv) > 2:
         output_file = sys.argv[2]
     else:
-        output_file = input("Введите имя выходного файла (по умолчанию 'collected_files.txt'): ").strip()
+        default_ext = ".md" if markdown_format else ".txt"
+        default_name = f"collected_files{default_ext}"
+        output_file = input(f"Введите имя выходного файла (по умолчанию '{default_name}'): ").strip()
         if not output_file:
-            output_file = "collected_files.txt"
+            output_file = default_name
     
-    # Спрашиваем про интерактивный режим если не указан в аргументах
+    # Спрашиваем про опции если не указаны в аргументах
     if not interactive_mode:
         choice = input("Использовать интерактивный выбор файлов? (y/N): ").strip().lower()
         interactive_mode = choice in ['y', 'yes', 'д', 'да']
     
-    # Спрашиваем про сортировку если не указана в аргументах
     if not sort_by_time:
         choice = input("Сортировать по времени изменения (новые сверху)? (y/N): ").strip().lower()
         sort_by_time = choice in ['y', 'yes', 'д', 'да']
+    
+    if not markdown_format:
+        choice = input("Использовать Markdown формат? (y/N): ").strip().lower()
+        markdown_format = choice in ['y', 'yes', 'д', 'да']
+        
+        if markdown_format and not show_structure:
+            choice = input("Включить структуру проекта? (y/N): ").strip().lower()
+            show_structure = choice in ['y', 'yes', 'д', 'да']
     
     source_path = Path(source_dir)
     
@@ -777,8 +908,10 @@ def main():
         return 1
     
     try:
-        collect_files(source_dir, output_file, interactive_mode, sort_by_time)
-        print(f"\nГотово! Результат сохранен в: {output_file}")
+        collect_files(source_dir, output_file, interactive_mode, sort_by_time, markdown_format, show_structure)
+        format_info = "Markdown" if markdown_format else "текстовом"
+        structure_info = " со структурой" if show_structure else ""
+        print(f"\nГотово! Результат сохранен в {format_info} формате{structure_info}: {output_file}")
         return 0
     except Exception as e:
         print(f"Ошибка: {e}")
