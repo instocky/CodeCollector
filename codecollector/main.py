@@ -94,19 +94,20 @@ class CodeCollectorApp:
                     print("❌ Файлы не выбраны. Операция отменена.")
                     return 0
                 collected_files = selected_files
-                
-                # Сохраняем настройки
-                self._save_user_preferences(collected_files)
                 print()
             
             # 4. ЗАПИСЬ РЕЗУЛЬТАТА
             print(f"📝 Обработка {len(collected_files)} файлов...")
             self._write_output(collected_files, source_path)
             
-            # 5. УСПЕШНОЕ ЗАВЕРШЕНИЕ
+            # 5. СОХРАНЕНИЕ НАСТРОЕК (ВСЕГДА)
+            self._save_user_preferences(collected_files)
+            print()
+            
+            # 6. УСПЕШНОЕ ЗАВЕРШЕНИЕ
             format_info = "Markdown" if self.config.markdown_format else "текстовом"
             structure_info = " со структурой" if self.config.show_structure else ""
-            print(f"\n✅ Готово! Результат сохранен в {format_info} формате{structure_info}:")
+            print(f"✅ Готово! Результат сохранен в {format_info} формате{structure_info}:")
             print(f"📄 {self.config.output_file}")
             
             # Показываем размер файла
@@ -135,10 +136,17 @@ class CodeCollectorApp:
             return 1
     
     def _get_source_directory(self) -> str:
-        """Получает исходную директорию"""
+        """Получает исходную директорию с улучшенной логикой"""
+        # Если директория уже указана в CLI
         if self.config.source_dir:
             return self.config.source_dir
         
+        # НОВАЯ ЛОГИКА: если НЕ удаленный режим, используем текущую директорию
+        if not getattr(self.config, 'remote_mode', False):
+            current_dir = os.getcwd()
+            return current_dir
+        
+        # Только в удаленном режиме спрашиваем директорию
         print("📁 Выбор директории для сканирования")
         source_dir = input("Введите путь к директории (или Enter для текущей): ").strip()
         return source_dir if source_dir else os.getcwd()
@@ -153,7 +161,7 @@ class CodeCollectorApp:
             print(f"❌ Ошибка: {source_path} не является директорией!")
             return False
         
-        print(f"✅ Рабочая директория: {source_path}")
+        print(f"📁 Рабочая директория: {source_path}")
         return True
     
     def _interactive_file_selection(self, files: List[Path], root_path: Path) -> List[Path]:

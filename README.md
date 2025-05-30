@@ -197,22 +197,22 @@ twine upload dist/*
 
 ```bash
 # Простой запуск CodeCollector
-python main.py
+codecollector
 
 # Указать директорию и выходной файл
-python main.py /path/to/project output.txt
+codecollector /path/to/project output.txt
 
 # Интерактивный режим
-python main.py -i
+codecollector -i
 
 # Сортировка по времени изменения
-python main.py -t
+codecollector -t
 
 # Markdown формат с структурой проекта
-python main.py -m -s
+codecollector -m -s
 
 # Комбинация флагов
-python main.py -i -t -m -s /path/to/project collected_code.md
+codecollector -i -t -m -s /path/to/project collected_code.md
 ```
 
 ### Флаги командной строки
@@ -240,15 +240,15 @@ CodeCollector автоматически запоминает ваши наст�
 
 ```bash
 # Первый запуск проекта
-python main.py -i -m -s /path/to/laravel-project
+codecollector -i -m -s /path/to/laravel-project
 # 💾 Настройки проекта сохранены
 
 # Повторный запуск - автоматически применяются сохраненные настройки
-python main.py /path/to/laravel-project
+codecollector /path/to/laravel-project
 # 📋 Применяемые флаги: -m -s (сохраненные настройки)
 
 # Переопределение сохраненных настроек
-python main.py --no-markdown /path/to/laravel-project
+codecollector --no-markdown /path/to/laravel-project
 # 📋 Применяемые флаги: -s (отменен -m через --no-markdown)
 ```
 
@@ -413,15 +413,15 @@ class UserController extends Controller
 ### Laravel проект
 ```bash
 # Первый запуск - настройка проекта
-python main.py -i -m -s /path/to/laravel-project laravel_code.md
+codecollector -i -m -s /path/to/laravel-project laravel_code.md
 
 # Последующие запуски - автоматическое применение настроек
-python main.py /path/to/laravel-project
+codecollector /path/to/laravel-project
 ```
 
 ### Анализ кодовой базы с историей изменений
 ```bash
-python main.py -t -m /path/to/project analysis.md
+codecollector -t -m /path/to/project analysis.md
 ```
 - Получите весь код с сортировкой по времени изменения
 - Увидите последние изменения сверху
@@ -430,10 +430,10 @@ python main.py -t -m /path/to/project analysis.md
 ### Подготовка для AI с памятью выбора
 ```bash
 # Первый раз - выберите нужные файлы
-python main.py -i /path/to/project code_for_ai.txt
+codecollector -i /path/to/project code_for_ai.txt
 
 # В следующий раз - тот же выбор применится автоматически
-python main.py /path/to/project
+codecollector /path/to/project
 ```
 
 ## 🔧 Технические детали
@@ -486,24 +486,24 @@ CLI флаги > Сохраненные настройки > Значения п
 ### Быстрый сбор PHP проекта с запоминанием
 ```bash
 # Первый раз - настраиваем
-python main.py -i -m -s ~/projects/my-php-app/ php_code.md
+codecollector -i -m -s ~/projects/my-php-app/ php_code.md
 
 # Потом просто запускаем
-python main.py ~/projects/my-php-app/
+codecollector ~/projects/my-php-app/
 ```
 
 ### React приложение с изменением настроек
 ```bash
 # Изначально с Markdown
-python main.py -i -m ~/projects/react-app/
+codecollector -i -m ~/projects/react-app/
 
 # Потом без Markdown, но с сохранением выбора файлов
-python main.py --no-markdown ~/projects/react-app/
+codecollector --no-markdown ~/projects/react-app/
 ```
 
 ### Анализ Python пакета
 ```bash
-python main.py -i -t -m -s ~/projects/my-package/ package_analysis.md
+codecollector -i -t -m -s ~/projects/my-package/ package_analysis.md
 ```
 
 ## 🗺️ Roadmap

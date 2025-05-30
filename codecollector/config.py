@@ -29,6 +29,7 @@ class Config:
     sort_by_time: bool = False
     markdown_format: bool = False
     show_structure: bool = False
+    remote_mode: bool = False  # НОВОЕ ПОЛЕ
     source_dir: Optional[str] = None
     output_file: Optional[str] = None
 
@@ -68,6 +69,8 @@ class ConfigManager:
                 config.show_structure = True
             elif arg in ['--no-structure']:
                 config.show_structure = False
+            elif arg in ['-r', '--remote']:  # НОВЫЙ ФЛАГ
+                config.remote_mode = True
             elif not arg.startswith('-'):
                 # Позиционные аргументы
                 if config.source_dir is None:
